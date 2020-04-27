@@ -5,6 +5,91 @@
 #include <stdlib.h>
 #include <string.h>
 
+// 抽象構文木のノードの種類
+typedef enum {
+  ND_ADD, // +
+  ND_SUB, // -
+  ND_MUL, // *
+  ND_DIV, // /
+  ND_NUM, // 整数
+} NodeKind;
+
+typedef struct Node Node;
+
+// 抽象構文木のノードの型
+struct Node {
+  NodeKind kind; // ノードの型
+  Node *lhs;     // 左辺
+  Node *rhs;     // 右辺
+  int val;       // kindがND_NUMの場合のみ使う
+};
+
+/***
+ * EBNFを使った四足演算の記法
+ * expr    = mul ("+" mul | "-" mul)*
+ * mul     = primary ("*" primary | "/" primary)*
+ * primary = num | "(" expr ")"
+ */
+
+// ノードを作成する関数 for 左辺と右辺を受け取る二項演算子
+Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+// ノードを作成する関数 for 数値
+Node *new_node_num(int val) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = ND_NUM;
+  node->val = val;
+  return node;
+}
+
+// 左結合の演算子(+, -)をパースする関数
+// return node(抽象構文木)
+Node *expr() {
+  Node *node = mul();
+
+  for (;;) {
+    if (consume('+'))
+      node = new_node(ND_ADD, node, mul());
+    else if (consume('-'))
+      node = new_node(ND_SUB, node, mul());
+    else
+      return node;
+  }
+}
+
+// 左結合の演算子(*, /)をパースする関数
+Node *mul() {
+  Node *node = primary();
+
+  for (;;) {
+    if (consume('*'))
+      node = new_node(ND_MUL, node, primary());
+    else if (consume('/'))
+      node = new_node(ND_DIV, node, primary());
+    else
+      return node;
+  }
+}
+
+// primary = "(" expr ")" | num をパースする関数
+Node *primary() {
+  // 次のトークンが"("なら、"(" expr ")"のはず
+  if (consume('(')) {
+    Node *node = expr();
+    expect(')');
+    return node;
+  }
+
+  // そうでなければ数値のはず
+  return new_node_num(expect_number());
+}
+
 // トークンの種類
 typedef enum {
   TK_RESERVED, // 記号
